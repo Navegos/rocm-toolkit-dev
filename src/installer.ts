@@ -1,4 +1,4 @@
-import artifactClient from '@actions/artifact'
+import {DefaultArtifactClient} from '@actions/artifact'
 import * as core from '@actions/core'
 import {filterReadable} from './fs-utils.js'
 import {OSType, getOs, getRelease} from './platform.js'
@@ -82,6 +82,7 @@ export async function install(
   } finally {
     // Always upload installation log regardless of error
     const osRelease = await getRelease()
+    const artifactClient = new DefaultArtifactClient()
     if (osType === OSType.windows) {
       if (fs.existsSync(logPath)) {
         const artifactName = `rocm-install-${osType}-${osRelease}-${method}-${logFileSuffix || 'log'}`
