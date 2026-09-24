@@ -1,6 +1,7 @@
 import {Method} from '../src/method'
 import {SemVer} from 'semver'
 import {getVersion} from '../src/version'
+import {expect, test} from '@jest/globals'
 
 test.concurrent.each<Method>(['local', 'network'])(
   'Successfully parse correct version for method %s',
@@ -10,7 +11,7 @@ test.concurrent.each<Method>(['local', 'network'])(
       const version = await getVersion(versionString, method)
       expect(version).toBeInstanceOf(SemVer)
       expect(version.compare(new SemVer(versionString))).toBe(0)
-    } catch (error) {
+    } catch {
       // Other OS
     }
   }
@@ -32,10 +33,10 @@ test.concurrent.each<Method>(['local', 'network'])(
   async method => {
     const versionString = '0.0.1'
     try {
-      await expect(getVersion(versionString, method)).rejects.toThrowError(
+      await expect(getVersion(versionString, method)).rejects.toThrow(
         `Version not available: ${versionString}`
       )
-    } catch (error) {
+    } catch {
       // Other OS
     }
   }

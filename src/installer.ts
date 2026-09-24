@@ -15,7 +15,7 @@ export async function install(
   executablePath: string,
   version: SemVer,
   subPackagesArray: string[] = [],
-  linuxLocalArgsArray: string[] = [],
+  _linuxLocalArgsArray: string[] = [],
   method: string = 'local',
   logFileSuffix: string = ''
 ): Promise<void> {

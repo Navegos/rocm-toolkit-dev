@@ -1,16 +1,33 @@
-import * as core from '@actions/core'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  jest,
+  test
+} from '@jest/globals'
 import * as path from 'path'
-import * as platform from '../src/platform'
+import os from 'os'
 import {SemVer} from 'semver'
-import {updatePath} from '../src/update-path'
+
+const exportVariableSpy = jest.fn()
+const addPathSpy = jest.fn()
+const debugSpy = jest.fn()
+
+jest.unstable_mockModule('@actions/core', () => ({
+  exportVariable: exportVariableSpy,
+  addPath: addPathSpy,
+  debug: debugSpy
+}))
+
+const {updatePath} = await import('../src/update-path.js')
 
 describe('updatePath', () => {
-  let exportVariableSpy: jest.SpyInstance
-  let addPathSpy: jest.SpyInstance
-
   beforeEach(() => {
-    exportVariableSpy = jest.spyOn(core, 'exportVariable').mockImplementation()
-    addPathSpy = jest.spyOn(core, 'addPath').mockImplementation()
+    exportVariableSpy.mockClear()
+    addPathSpy.mockClear()
+    debugSpy.mockClear()
+    jest.spyOn(os, 'arch').mockReturnValue('x64')
   })
 
   afterEach(() => {
@@ -18,20 +35,26 @@ describe('updatePath', () => {
   })
 
   test('Linux exports ROCM_PATH and versioned variants', async () => {
-    jest.spyOn(platform, 'getOs').mockResolvedValue(platform.OSType.linux)
+    jest.spyOn(os, 'platform').mockReturnValue('linux')
     const version = new SemVer('5.5.1')
 
     const rocmPath = await updatePath(version)
 
     expect(rocmPath).toBe('/opt/rocm-5.5')
     expect(exportVariableSpy).toHaveBeenCalledWith('ROCM_PATH', '/opt/rocm-5.5')
-    expect(exportVariableSpy).toHaveBeenCalledWith('ROCM_PATH_5_5', '/opt/rocm-5.5')
-    expect(exportVariableSpy).toHaveBeenCalledWith('ROCM_PATH_5_5_1', '/opt/rocm-5.5')
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'ROCM_PATH_5_5',
+      '/opt/rocm-5.5'
+    )
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      'ROCM_PATH_5_5_1',
+      '/opt/rocm-5.5'
+    )
     expect(addPathSpy).toHaveBeenCalledWith(path.join('/opt/rocm-5.5', 'bin'))
   })
 
   test('Windows exports HIP_PATH and versioned variants without ROCM_PATH', async () => {
-    jest.spyOn(platform, 'getOs').mockResolvedValue(platform.OSType.windows)
+    jest.spyOn(os, 'platform').mockReturnValue('win32')
     const version = new SemVer('5.5.1')
 
     const rocmPath = await updatePath(version)

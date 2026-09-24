@@ -16,7 +16,8 @@ test.concurrent(
   'Windows Rocm version to URL map contains valid URLs',
   async () => {
     for (const version of WindowsLinks.Instance.getAvailableLocalRocmVersions()) {
-      const url = await WindowsLinks.Instance.getLocalURLFromRocmVersion(version)
+      const url =
+        await WindowsLinks.Instance.getLocalURLFromRocmVersion(version)
       expect(url).toBeInstanceOf(URL)
     }
   }
@@ -46,7 +47,7 @@ test.concurrent(
   async () => {
     for (const version of WindowsLinks.Instance.getAvailableNetworkRocmVersions()) {
       const url: URL =
-        WindowsLinks.Instance.getNetworkURLFromRocmVersion(version)
+        await WindowsLinks.Instance.getNetworkURLFromRocmVersion(version)
       expect(url).toBeInstanceOf(URL)
     }
   }

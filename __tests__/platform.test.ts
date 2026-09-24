@@ -1,5 +1,6 @@
 import {OSType, getArch, getOs} from '../src/platform'
 import os from 'os'
+import {afterEach, describe, expect, jest, test} from '@jest/globals'
 
 test.concurrent('Return either windows of linux platform', async () => {
   const osString = os.platform()
@@ -12,6 +13,7 @@ test.concurrent('Return either windows of linux platform', async () => {
       expected = OSType.linux
       break
     default:
+      // eslint-disable-next-line jest/no-conditional-expect
       await expect(getOs()).rejects.toThrow(`Unsupported OS: ${osString}`)
       return
   }

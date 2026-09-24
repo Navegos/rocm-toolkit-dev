@@ -12,9 +12,9 @@ The action automatically sets the installation directory in `GITHUB_ENV` (`ROCM_
 
 ## Supported Platforms & Architectures
 
-| OS | Supported Runner Images | Architecture |
-|---|---|---|
-| **Linux** | `ubuntu-26.04`, `ubuntu-24.04`, `ubuntu-22.04` | `x86_64` (`x64`) only |
+| OS          | Supported Runner Images                               | Architecture          |
+| ----------- | ----------------------------------------------------- | --------------------- |
+| **Linux**   | `ubuntu-26.04`, `ubuntu-24.04`, `ubuntu-22.04`        | `x86_64` (`x64`) only |
 | **Windows** | `windows-2025-vs2026`, `windows-2025`, `windows-2022` | `x86_64` (`x64`) only |
 
 > [!NOTE]
@@ -29,26 +29,26 @@ The action automatically sets the installation directory in `GITHUB_ENV` (`ROCM_
 
 ## Inputs
 
-| Input | Description | Required | Default |
-|---|---|---|---|
-| `rocm` | ROCm version to install. | No | `'5.5.1'` |
-| `sub-packages` | JSON array of specific subpackages to install (e.g. `'["hip-sdk"]'`). | No | `'[]'` |
-| `non-rocm-sub-packages` | JSON array of subpackages without `rocm-` prefix (e.g. `'["rocblas"]'`). | No | `'[]'` |
-| `method` | Installation method: `'local'` or `'network'`. On Linux, installations use the APT repository. | No | `'local'` |
-| `linux-local-args` | Arguments for the local installer as a JSON string array. | No | `'[]'` |
-| `use-github-cache` | Cache installer on GitHub Actions server cache. | No | `'true'` |
-| `use-local-cache` | Cache installer on runner disk. | No | `'true'` |
-| `log-file-suffix` | Suffix for uploaded log artifact. | No | `'log.txt'` |
+| Input                   | Description                                                                                    | Required | Default     |
+| ----------------------- | ---------------------------------------------------------------------------------------------- | -------- | ----------- |
+| `rocm`                  | ROCm version to install.                                                                       | No       | `'5.5.1'`   |
+| `sub-packages`          | JSON array of specific subpackages to install (e.g. `'["hip-sdk"]'`).                          | No       | `'[]'`      |
+| `non-rocm-sub-packages` | JSON array of subpackages without `rocm-` prefix (e.g. `'["rocblas"]'`).                       | No       | `'[]'`      |
+| `method`                | Installation method: `'local'` or `'network'`. On Linux, installations use the APT repository. | No       | `'local'`   |
+| `linux-local-args`      | Arguments for the local installer as a JSON string array.                                      | No       | `'[]'`      |
+| `use-github-cache`      | Cache installer on GitHub Actions server cache.                                                | No       | `'true'`    |
+| `use-local-cache`       | Cache installer on runner disk.                                                                | No       | `'true'`    |
+| `log-file-suffix`       | Suffix for uploaded log artifact.                                                              | No       | `'log.txt'` |
 
 ---
 
 ## Outputs
 
-| Output | Description |
-|---|---|
-| `ROCM_PATH` | Installation path of ROCm (Linux). |
-| `HIP_PATH` | Installation path of HIP SDK (Windows). |
-| `rocm` | Version of ROCm installed. |
+| Output      | Description                             |
+| ----------- | --------------------------------------- |
+| `ROCM_PATH` | Installation path of ROCm (Linux).      |
+| `HIP_PATH`  | Installation path of HIP SDK (Windows). |
+| `rocm`      | Version of ROCm installed.              |
 
 ---
 
@@ -77,7 +77,7 @@ steps:
 
   - name: Install AMD ROCm
     id: setup-rocm
-    uses: Navegos/rocm-toolkit-dev@v0.2.39
+    uses: Navegos/rocm-toolkit-dev@v0
     with:
       rocm: '5.5.1'
 
@@ -92,7 +92,7 @@ steps:
   - uses: actions/checkout@v7
 
   - name: Install HIP SDK and rocblas
-    uses: Navegos/rocm-toolkit-dev@v0.2.39
+    uses: Navegos/rocm-toolkit-dev@v0
     with:
       rocm: '5.5.1'
       method: 'network'
@@ -124,8 +124,10 @@ jobs:
       fail-fast: false
       matrix:
         os:
+          - ubuntu-26.04
           - ubuntu-24.04
           - ubuntu-22.04
+          - windows-2025-vs2026
           - windows-2025
           - windows-2022
         method: [local, network]
@@ -137,7 +139,7 @@ jobs:
 
       - name: Install AMD ROCm
         id: test-action
-        uses: Navegos/rocm-toolkit-dev@v0.2.39
+        uses: Navegos/rocm-toolkit-dev@v0
         with:
           rocm: ${{ matrix.rocm }}
           method: ${{ matrix.method }}
@@ -145,7 +147,7 @@ jobs:
 
       - name: Install subpackages (Linux network only)
         if: runner.os == 'Linux' && matrix.method == 'network'
-        uses: Navegos/rocm-toolkit-dev@v0.2.39
+        uses: Navegos/rocm-toolkit-dev@v0
         with:
           method: ${{ matrix.method }}
           sub-packages: '["hip-sdk"]'
@@ -167,12 +169,14 @@ jobs:
         run: |
           Get-ChildItem $env:HIP_PATH
           Get-ChildItem $env:HIP_PATH\bin
+          Get-ChildItem $env:HIP_PATH\include
 
       - name: List ROCm files (Linux)
         if: runner.os == 'Linux'
         run: |
           ls -la $ROCM_PATH
           ls -la $ROCM_PATH/bin
+          ls -la $ROCM_PATH/include
 ```
 
 ---
@@ -182,10 +186,11 @@ jobs:
 To publish this action to the GitHub Actions Marketplace:
 
 1. Ensure the repository is **Public**.
-2. Make sure `action.yml` is present in the repository root.
-3. Bundle `dist/index.js` as a standalone executable (dependencies included).
-4. Create a Git release tag (e.g. `v0.2.39` and update `v0`).
-5. In GitHub Releases, click **Draft a new release**, choose the tag, and check **"Publish this Action to the GitHub Marketplace"**.
+2. Make sure `action.yml` is present in the repository root (includes `name`, `description`, `runs`, `branding`).
+3. Bundle `dist/index.js` as a standalone executable (run `npm run all` or `npm run package`).
+4. Commit the latest `dist/` and push to GitHub.
+5. Create a Git release tag (e.g. `v0.2.40` and move/update `v0` major tag).
+6. In GitHub Releases, click **Draft a new release**, choose the tag, and check **"Publish this Action to the GitHub Marketplace"**.
 
 ---
 
