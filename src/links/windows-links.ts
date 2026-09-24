@@ -1,20 +1,6 @@
-import {AbstractLinks} from './links'
+import {AbstractLinks} from './links.js'
 import {SemVer} from 'semver'
-
-// # Dictionary of known cuda versions and thier download URLS, which do not follow a consistent pattern :(
-// $CUDA_KNOWN_URLS = @{
-//     "8.0.44" = "http://developer.nvidia.com/compute/cuda/8.0/Prod/network_installers/cuda_8.0.44_win10_network-exe";
-//     "8.0.61" = "http://developer.nvidia.com/compute/cuda/8.0/Prod2/network_installers/cuda_8.0.61_win10_network-exe";
-//     "9.0.176" = "http://developer.nvidia.com/compute/cuda/9.0/Prod/network_installers/cuda_9.0.176_win10_network-exe";
-//     "9.1.85" = "http://developer.nvidia.com/compute/cuda/9.1/Prod/network_installers/cuda_9.1.85_win10_network";
-//     "9.2.148" = "http://developer.nvidia.com/compute/cuda/9.2/Prod2/network_installers2/cuda_9.2.148_win10_network";
-//     "10.0.130" = "http://developer.nvidia.com/compute/cuda/10.0/Prod/network_installers/cuda_10.0.130_win10_network";
-//     "10.1.105" = "http://developer.nvidia.com/compute/cuda/10.1/Prod/network_installers/cuda_10.1.105_win10_network.exe";
-//     "10.1.168" = "http://developer.nvidia.com/compute/cuda/10.1/Prod/network_installers/cuda_10.1.168_win10_network.exe";
-//     "10.1.243" = "http://developer.download.nvidia.com/compute/cuda/10.1/Prod/network_installers/cuda_10.1.243_win10_network.exe";
-//     "10.2.89" = "http://developer.download.nvidia.com/compute/cuda/10.2/Prod/network_installers/cuda_10.2.89_win10_network.exe";
-//     "11.0.167" = "http://developer.download.nvidia.com/compute/cuda/11.0.1/network_installers/cuda_11.0.1_win10_network.exe"
-// }
+import {CPUArch, getArch} from '../arch.js'
 
 /**
  * Singleton class for windows links.
@@ -23,21 +9,69 @@ export class WindowsLinks extends AbstractLinks {
   // Singleton instance
   private static _instance: WindowsLinks
 
-  private cudaVersionToNetworkUrl: Map<string, string> = new Map([
+  private readonly rocmVersionToNetworkUrl: Map<string, string> = new Map([
     [
-      '5.5.0',
-      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q3-WinSvr2022-For-HIP.exe'
+      '7.2.0',
+      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q3-Win11-For-HIP.exe'
+    ],
+    [
+      '7.1.1',
+      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q1-Win11-For-HIP.exe'
+    ],
+    [
+      '6.4.2',
+      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-25.Q3-Win10-Win11-For-HIP.exe'
+    ],
+    [
+      '6.2.4',
+      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q4-Win10-Win11-For-HIP.exe'
+    ],
+    [
+      '6.1.2',
+      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-Win10-Win11-For-HIP.exe'
+    ],
+    [
+      '5.7.1',
+      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q4-Win10-Win11-For-HIP.exe'
+    ],
+    [
+      '5.5.1',
+      'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q3-Win10-Win11-For-HIP.exe'
     ]
   ])
 
   // Private constructor to prevent instantiation
   private constructor() {
     super()
-    // Map of cuda SemVer version to download URL
-    this.cudaVersionToURL = new Map([
+    // Map of Rocm SemVer version to download URL
+    this.rocmVersionToURL = new Map([
       [
-        '5.5.0',
-        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q3-WinSvr2022-For-HIP.exe'
+        '7.2.0',
+        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q3-Win11-For-HIP.exe'
+      ],
+      [
+        '7.1.1',
+        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q1-Win11-For-HIP.exe'
+      ],
+      [
+        '6.4.2',
+        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-25.Q3-Win10-Win11-For-HIP.exe'
+      ],
+      [
+        '6.2.4',
+        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q4-Win10-Win11-For-HIP.exe'
+      ],
+      [
+        '6.1.2',
+        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-Win10-Win11-For-HIP.exe'
+      ],
+      [
+        '5.7.1',
+        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q4-Win10-Win11-For-HIP.exe'
+      ],
+      [
+        '5.5.1',
+        'https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-23.Q3-Win10-Win11-For-HIP.exe'
       ]
     ])
   }
@@ -46,17 +80,49 @@ export class WindowsLinks extends AbstractLinks {
     return this._instance || (this._instance = new this())
   }
 
-  getAvailableNetworkCudaVersions(): SemVer[] {
-    return Array.from(this.cudaVersionToNetworkUrl.keys()).map(
+  getAvailableNetworkRocmVersions(): SemVer[] {
+    return Array.from(this.rocmVersionToNetworkUrl.keys()).map(
       s => new SemVer(s)
     )
   }
 
-  getNetworkURLFromCudaVersion(version: SemVer): URL {
-    const urlString = this.cudaVersionToNetworkUrl.get(`${version}`)
+  async getLocalURLFromRocmVersion(version: SemVer): Promise<URL> {
+    const link = await super.getLocalURLFromRocmVersion(version)
+    return await this.urlForCurrentArch(link, version)
+  }
+
+  async getNetworkURLFromRocmVersion(version: SemVer): Promise<URL> {
+    const urlString = this.rocmVersionToNetworkUrl.get(`${version}`)
     if (urlString === undefined) {
       throw new Error(`Invalid version: ${version}`)
     }
-    return new URL(urlString)
+    return await this.urlForCurrentArch(new URL(urlString), version)
+  }
+
+  /**
+   * Patch a x86_64 URL to its arm64 counterpart on arm hosts (based on the version, 13.4.1+)
+   */
+  private async urlForCurrentArch(url: URL, version: SemVer): Promise<URL> {
+    const arch: CPUArch = await getArch()
+    if (arch !== CPUArch.x86_64) {
+      throw new Error(
+        `Link only available for x86_64: ${arch}. Version ${version}`
+      )
+    }
+    return url
+    /* // gate older versions that don't have arm64 installers
+    if (version.compare(WindowsLinks.firstArm64Version) < 0) {
+      throw new Error(
+        `Rocm ${version} does not provide a Windows arm64 installer (arm64 builds are available from ${WindowsLinks.firstArm64Version})`
+      )
+    }
+    const x86Marker = '_windows_x86_64'
+    const urlString = url.toString()
+    if (!urlString.includes(x86Marker)) {
+      throw new Error(
+        `Cannot derive Windows arm64 installer URL for Rocm ${version} from ${urlString}`
+      )
+    }
+    return new URL(urlString.replace(x86Marker, '_windows_arm64')) */
   }
 }

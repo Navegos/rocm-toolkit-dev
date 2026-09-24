@@ -1,0 +1,163 @@
+import * as cache from '@actions/cache';
+import * as core from '@actions/core';
+import * as tc from '@actions/tool-cache';
+import * as io from '@actions/io';
+import { OSType, getOs, getRelease } from './platform.js';
+import { WindowsLinks } from './links/windows-links.js';
+import fs from 'node:fs';
+import { getLinks } from './links/get-links.js';
+import { getArch } from './arch.js';
+import { getFilesRecursive } from './fs-utils.js';
+// Download helper which returns the installer executable and caches it for next runs
+export async function download(version, method, useLocalCache, useGitHubCache) {
+    // First try to find tool with desired version in tool cache (local to machine)
+    const toolName = 'rocm_installer';
+    const osType = await getOs();
+    const cpuArch = await getArch();
+    const osRelease = await getRelease();
+    const toolId = `${toolName}-${osType}-${osRelease}-${cpuArch}`;
+    if (osType !== OSType.windows) {
+        throw new Error('ROCm installer download is only supported on Windows');
+    }
+    // Path that contains the executable file
+    let executableDirectory;
+    const cacheKey = `${toolId}-${version}`;
+    const cacheDirectory = cacheKey;
+    // First try to find tool with desired version in tool cache (local to machine)
+    if (useLocalCache) {
+        const toolPath = tc.find(toolId, `${version}`);
+        if (toolPath) {
+            // Tool is already in cache
+            core.debug(`Found in local machine cache ${toolPath}`);
+            executableDirectory = toolPath;
+        }
+        else {
+            core.debug(`Not found in local cache`);
+        }
+    }
+    // Second option, get tool from GitHub cache if enabled
+    if (executableDirectory === undefined && useGitHubCache) {
+        const cacheResult = await cache.restoreCache([cacheDirectory], cacheKey);
+        if (cacheResult !== undefined) {
+            core.debug(`Found in GitHub cache ${cacheDirectory}`);
+            executableDirectory = cacheDirectory;
+        }
+        else {
+            core.debug(`Not found in GitHub cache`);
+        }
+    }
+    // Final option, download tool from AMD servers
+    if (executableDirectory === undefined) {
+        core.debug(`Not found in local/GitHub cache, downloading...`);
+        // Get download URL
+        const url = await getDownloadURL(method, version);
+        // Get intsaller filename extension depending on OS
+        const fileExtension = getFileExtension(osType);
+        const downloadDirectory = 'rocm_download';
+        const destFileName = `${toolId}_${version}.${fileExtension}`;
+        const destFilePath = `${downloadDirectory}/${destFileName}`;
+        // Check if file already exists
+        if (!(await fileExists(destFilePath))) {
+            core.debug(`File at ${destFilePath} does not exist, downloading`);
+            // Download executable
+            await tc.downloadTool(url.toString(), destFilePath);
+        }
+        else {
+            core.debug(`File at ${destFilePath} already exists, skipping download`);
+        }
+        if (useLocalCache) {
+            // Cache download to local machine cache
+            const localCacheDirectory = await tc.cacheFile(destFilePath, destFileName, toolId, `${version}`);
+            core.debug(`Cached download to local machine cache at ${localCacheDirectory}`);
+            executableDirectory = localCacheDirectory;
+        }
+        if (useGitHubCache && osType !== OSType.windows) {
+            // Move file to GitHub cache directory
+            core.debug(`Copying ${destFilePath} to ${cacheDirectory}`);
+            await io.mkdirP(cacheDirectory);
+            await io.mv(destFilePath, cacheDirectory);
+            // Log full path and files in cache directory
+            const filesInCacheDir = await getFilesRecursive(cacheDirectory);
+            core.debug(`Files in GitHub cache directory ${cacheDirectory}:`);
+            for (const f of filesInCacheDir) {
+                core.debug(f);
+            }
+            // Log absolute path
+            const absoluteCacheDir = await fs.promises.realpath(cacheDirectory);
+            core.debug(`Absolute path of cache directory: ${absoluteCacheDir}`);
+            // Save cache directory to GitHub cache
+            const cacheId = await cache.saveCache([cacheDirectory], cacheKey);
+            if (cacheId !== -1) {
+                core.debug(`Cached download to GitHub cache with cache id ${cacheId}`);
+            }
+            else {
+                core.debug(`Did not cache, cache possibly already exists`);
+            }
+            core.debug(`Tool was moved to cache directory ${cacheDirectory}`);
+            executableDirectory = cacheDirectory;
+        }
+        executableDirectory ??= downloadDirectory;
+    }
+    core.debug(`Executable path ${executableDirectory}`);
+    // String with full executable path
+    let fullExecutablePath;
+    // Get list of files in tool cache using readdir recursive helper
+    const filesInCache = await getFilesRecursive(executableDirectory);
+    core.debug(`Files in tool cache:`);
+    for (const f of filesInCache) {
+        core.debug(f);
+    }
+    if (filesInCache.length > 1) {
+        throw new Error(`Got multiple file in tool cache: ${filesInCache.length}`);
+    }
+    else if (filesInCache.length === 0) {
+        throw new Error(`Got no files in tool cache`);
+    }
+    else {
+        fullExecutablePath = filesInCache[0];
+    }
+    // Make file executable on linux
+    if ((await getOs()) === OSType.linux) {
+        // 0755 octal notation permission is: owner(r,w,x), group(r,w,x), other(r,x) where r=read, w=write, x=execute
+        await fs.promises.chmod(fullExecutablePath, '0755');
+    }
+    // Return full executable path
+    return fullExecutablePath;
+}
+function getFileExtension(osType) {
+    switch (osType) {
+        case OSType.windows:
+            return 'exe';
+        case OSType.linux:
+            return 'run';
+    }
+}
+async function fileExists(filePath) {
+    try {
+        const stats = await fs.promises.stat(filePath);
+        core.debug(`Got the following stats for ${filePath}: isFile=${stats.isFile()}, size=${stats.size}`);
+        return !!stats;
+    }
+    catch (e) {
+        core.debug(`Got error while checking if ${filePath} exists: ${e}`);
+        return false;
+    }
+}
+async function getDownloadURL(method, version) {
+    const links = await getLinks();
+    if (!(links instanceof WindowsLinks)) {
+        throw new TypeError('ROCm installer download is only supported on Windows');
+    }
+    switch (method) {
+        case 'local':
+            return await links.getLocalURLFromRocmVersion(version);
+        case 'network':
+            if (!(links instanceof WindowsLinks)) {
+                core.debug(`Tried to get windows links but got linux links instance`);
+                throw new Error(`Network mode is not supported by linux, shouldn't even get here`);
+            }
+            return links.getNetworkURLFromRocmVersion(version);
+        default:
+            throw new Error(`Invalid method: expected either 'local' or 'network', got '${method}'`);
+    }
+}

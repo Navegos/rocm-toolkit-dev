@@ -96,4 +96,16 @@ Thumbs.db
 
 # Ignore built ts files
 __tests__/runner/*
-lib/
+
+# IDE files
+.idea
+*.code-workspace
+
+# Ignore Github context-mode
+.github/context-mode/
+
+#Ignore vscode AI rules
+.github/instructions/
+
+#Ignore codegraph
+.codegraph/

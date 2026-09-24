@@ -1,68 +1,75 @@
-import * as artifact from '@actions/artifact'
+import artifactClient from '@actions/artifact'
 import * as core from '@actions/core'
-import * as glob from '@actions/glob'
-import {OSType, getOs} from './platform'
+import {filterReadable} from './fs-utils.js'
+import {OSType, getOs, getRelease} from './platform.js'
+import {CPUArch, getArch} from './arch.js'
 import {SemVer} from 'semver'
 import {exec} from '@actions/exec'
-import path from 'path'
-import os from 'os'
+import path from 'node:path'
+import * as os from 'node:os'
+import fs from 'node:fs'
+import {WindowsLinks} from './links/windows-links.js'
+import {aptSetup, aptInstall} from './apt-installer.js'
 
 export async function install(
   executablePath: string,
   version: SemVer,
-  subPackagesArray: string[],
-  linuxLocalArgsArray: string[]
+  subPackagesArray: string[] = [],
+  linuxLocalArgsArray: string[] = [],
+  method: string = 'local',
+  logFileSuffix: string = ''
 ): Promise<void> {
-  // Install arguments, see: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#runfile-advanced
-  // and https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html
-  let installArgs: string[]
+  const archType = await getArch()
+  if (archType !== CPUArch.x86_64) {
+    throw new Error(
+      `Unsupported architecture: ${archType}. Only x86_64 is supported.`
+    )
+  }
 
-  // Command string that is executed
-  let command: string
+  const osType = await getOs()
+  if (osType !== OSType.windows && osType !== OSType.linux) {
+    throw new Error(
+      `Unsupported OS: ${osType}. Only Windows and Linux are supported.`
+    )
+  }
 
-  // Subset of subpackages to install instead of everything, see: https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html#install-cuda-software
-  const subPackages: string[] = subPackagesArray
+  // Linux uses apt-installer only
+  if (osType === OSType.linux) {
+    core.debug(`Installing ROCm ${version} using apt-installer`)
+    await aptSetup(version)
+    await aptInstall(version, subPackagesArray)
+    return
+  }
+
+  // Windows: only accepts versions as in WindowsLinks
+  const winLinks = WindowsLinks.Instance
+  const availableVersions = winLinks.getAvailableLocalRocmVersions()
+  if (!availableVersions.some(v => v.compare(version) === 0)) {
+    throw new Error(`Version not available: ${version}`)
+  }
+
+  const logPath = path.join(os.tmpdir(), 'installer_log.txt')
 
   // Execution options which contain callback functions for stdout and stderr of install process
   const execOptions = {
     listeners: {
       stdout: (data: Buffer) => {
-        core.info(data.toString())
+        core.debug(data.toString())
       },
       stderr: (data: Buffer) => {
-        core.info(`Error: ${data.toString()}`)
+        core.debug(`Error: ${data.toString()}`)
       }
     }
   }
 
-  // Configure OS dependent run command and args
-  switch (await getOs()) {
-    case OSType.linux:
-      // Root permission needed on linux
-      command = `sudo ${executablePath}`
-      // Install silently, and add additional arguments
-      installArgs = ['--silent'].concat(linuxLocalArgsArray)
-      break
-    case OSType.windows:
-      // Windows handles permissions automatically
-      command = `powershell`
-      // Install silently
-      installArgs = [
-        '-Command',
-        `Start-Process ${executablePath} -ArgumentList '-install','-log',"${os.tmpdir()}/installer_log.txt" -NoNewWindow -Wait`
-      ]
-      // Add subpackages to command args (if any)
-      // installArgs = installArgs.concat(
-      //     subPackages.map(subPackage => {
-      //         // Display driver sub package name is not dependent on version
-      //         if (subPackage === 'Display.Driver') {
-      //             return subPackage
-      //         }
-      //         return `${subPackage}_${version.major}.${version.minor}`
-      //     })
-      // )
-      break
-  }
+  // Windows uses exe file installer only through PowerShell
+  const command = 'powershell'
+  const installArgs = [
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    `$process = Start-Process -FilePath "${executablePath}" -ArgumentList "-install","-log","${logPath}" -NoNewWindow -Wait -PassThru; exit $process.ExitCode`
+  ]
 
   // Run installer
   try {
@@ -74,24 +81,40 @@ export async function install(
     throw error
   } finally {
     // Always upload installation log regardless of error
-    if ((await getOs()) === OSType.windows) {
-      const artifactClient = artifact.create()
-      const artifactName = 'install-log'
-      const patterns = [path.join(os.tmpdir(), 'installer_log.txt')]
-      const globber = await glob.create(patterns.join('\n'))
-      const files = await globber.glob()
-      if (files.length > 0) {
-        const rootDirectory = os.tmpdir()
-        const artifactOptions = {
-          continueOnError: true
+    const osRelease = await getRelease()
+    if (osType === OSType.windows) {
+      if (fs.existsSync(logPath)) {
+        const artifactName = `rocm-install-${osType}-${osRelease}-${method}-${logFileSuffix || 'log'}`
+        try {
+          await artifactClient.uploadArtifact(
+            artifactName,
+            [logPath],
+            os.tmpdir()
+          )
+        } catch (error) {
+          core.debug(`Upload artifact error: ${error}`)
         }
-        const uploadResult = await artifactClient.uploadArtifact(
-          artifactName,
-          files,
-          rootDirectory,
-          artifactOptions
-        )
-        core.debug(`Upload result: ${uploadResult}`)
+      }
+    } else if (osType === OSType.linux) {
+      const artifactName = `rocm-install-${osType}-${osRelease}-${method}-${logFileSuffix || 'log'}`
+      const candidates = ['/var/log/rocm-installer.log']
+      const files = await filterReadable(candidates)
+      const username = os.userInfo().username
+      if (files.length > 0) {
+        for (const file of files) {
+          await exec(`sudo chmod 644 ${file}`)
+          await exec(`sudo chown ${username} ${file}`)
+        }
+        const rootDirectory = '/var/log'
+        try {
+          await artifactClient.uploadArtifact(
+            artifactName,
+            files,
+            rootDirectory
+          )
+        } catch (error) {
+          core.debug(`Upload artifact error: ${error}`)
+        }
       } else {
         core.debug(`No log file to upload`)
       }

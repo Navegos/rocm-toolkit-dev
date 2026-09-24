@@ -13,14 +13,17 @@ test.concurrent('getLinks gives a valid ILinks class', async () => {
   }
 })
 
-test.concurrent('getLinks return same versions in same order', async () => {
-  const linuxLinks = LinuxLinks.Instance.getAvailableLocalCudaVersions()
-  const windowsLinks = WindowsLinks.Instance.getAvailableLocalCudaVersions()
-  const windowsNetworkLinks =
-    WindowsLinks.Instance.getAvailableNetworkCudaVersions()
+test.concurrent(
+  'getLinks returns available versions for platforms',
+  async () => {
+    const linuxLinks = LinuxLinks.Instance.getAvailableLocalRocmVersions()
+    const windowsLinks = WindowsLinks.Instance.getAvailableLocalRocmVersions()
+    const windowsNetworkLinks =
+      WindowsLinks.Instance.getAvailableNetworkRocmVersions()
 
-  expect(linuxLinks.length).toBe(windowsLinks.length)
-  expect(windowsLinks.length).toBe(windowsNetworkLinks.length)
-  expect(linuxLinks).toEqual(windowsLinks)
-  expect(windowsLinks).toEqual(windowsNetworkLinks)
-})
+    expect(linuxLinks.length).toBe(46)
+    expect(windowsLinks.length).toBe(7)
+    expect(windowsLinks.length).toBe(windowsNetworkLinks.length)
+    expect(windowsLinks).toEqual(windowsNetworkLinks)
+  }
+)

@@ -1,33 +1,46 @@
-name: 'rocm-toolkit'
+name: 'rocm-toolkit-dev'
 description: 'Installs Rocm Toolkit and adds it to PATH'
-author: 'Cyberhan123'
+author: '@DevelVitorF'
 inputs:
   rocm:
-    description: 'rocm version'
+    description: 'Rocm version'
     required: false
-    default: '5.5.0'
-#  sub-packages:
-#    description: 'Only installs specified subpackages, must be in the form of a JSON array. For example, if you only want to install nvcc and visual studio integration: ["nvcc", "visual_studio_integration"] double quotes required! Note that if you want to use this on Linux, ''network'' method MUST be used.'
-#    required: false
-#    default: '[]'
-#  non-cuda-sub-packages:
-#    description: 'Only installs specified subpackages that do not have the cuda prefix, must be in the form of a JSON array. For example, if you only want to install libcublas and libcufft: ["libcublas", "libcufft"] double quotes required! Note that this only works with ''network'' method on only on Linux.'
-#    required: false
-#    default: '[]'
-#  method:
-#    description: "Installation method, can be either 'local' or 'network'. 'local' downloads the entire installer with all packages and runs that (you can still only install certain packages with sub-packages on Windows). 'network' downloads a smaller executable which only downloads necessary packages which you can define in subPackages"
-#    required: false
-#    default: 'local'
-#  linux-local-args:
-#    description: '(Linux and ''local'' method only) override arguments for the linux .run installer. For example if you don''t want samples use ["--toolkit"] double quotes required!'
-#    required: false
-#    default: '["--toolkit", "--samples"]'
+    default: '5.5.1'
+  sub-packages:
+    description: 'Only installs specified subpackages, must be in the form of a JSON array.'
+    required: false
+    default: '[]'
+  non-rocm-sub-packages:
+    description:
+      'Only installs specified subpackages that do not have the rocm prefix,
+      must be in the form of a JSON array.'
+    required: false
+    default: '[]'
+  method:
+    description: "Installation method: 'local' or 'network'."
+    required: false
+    default: 'local'
   use-github-cache:
     description: 'Use GitHub cache to cache downloaded installer on GitHub servers'
     required: false
     default: 'true'
+  use-local-cache:
+    description: 'Use local cache to cache downloaded installer on the local runner'
+    required: false
+    default: 'true'
+  log-file-suffix:
+    description: 'Suffix of log file name in artifact'
+    required: false
+    default: 'log.txt'
+outputs:
+  ROCM_PATH:
+    description: 'Path to Rocm installation'
+  HIP_PATH:
+    description: 'Path to HIP SDK installation'
+  rocm:
+    description: 'Version of Rocm installed'
 runs:
-  using: 'node16'
+  using: 'node24'
   main: dist/index.js
 branding:
   icon: box

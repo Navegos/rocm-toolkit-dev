@@ -1,88 +1,127 @@
 import * as cache from '@actions/cache'
 import * as core from '@actions/core'
-import * as glob from '@actions/glob'
 import * as tc from '@actions/tool-cache'
 import * as io from '@actions/io'
-import {OSType, getOs, getRelease} from './platform'
-import {AbstractLinks} from './links/links'
-import {Method} from './method'
+import {OSType, getOs, getRelease} from './platform.js'
+import {AbstractLinks} from './links/links.js'
+import {Method} from './method.js'
 import {SemVer} from 'semver'
-import {WindowsLinks} from './links/windows-links'
-import fs from 'fs'
-import {getLinks} from './links/get-links'
+import {WindowsLinks} from './links/windows-links.js'
+import fs from 'node:fs'
+import {getLinks} from './links/get-links.js'
+import {getArch} from './arch.js'
+import {getFilesRecursive} from './fs-utils.js'
 
 // Download helper which returns the installer executable and caches it for next runs
 export async function download(
   version: SemVer,
   method: Method,
+  useLocalCache: boolean,
   useGitHubCache: boolean
 ): Promise<string> {
   // First try to find tool with desired version in tool cache (local to machine)
   const toolName = 'rocm_installer'
   const osType = await getOs()
+  const cpuArch = await getArch()
   const osRelease = await getRelease()
-  const toolId = `${toolName}-${osType}-${osRelease}`
-  const toolPath = tc.find(toolId, `${version}`)
+  const toolId = `${toolName}-${osType}-${osRelease}-${cpuArch}`
+  if (osType !== OSType.windows) {
+    throw new Error('ROCm installer download is only supported on Windows')
+  }
   // Path that contains the executable file
-  let executablePath: string
-  if (toolPath) {
-    // Tool is already in cache
-    core.debug(`Found in local machine cache ${toolPath}`)
-    executablePath = toolPath
-  } else {
-    // Second option, get tool from GitHub cache if enabled
-    const cacheKey = `${toolId}-${version}`
-    const cachePath = cacheKey
-    let cacheResult: string | undefined
-    if (useGitHubCache) {
-      cacheResult = await cache.restoreCache([cachePath], cacheKey)
-    }
-    if (cacheResult !== undefined) {
-      core.debug(`Found in GitHub cache ${cachePath}`)
-      executablePath = cachePath
+  let executableDirectory: string | undefined
+  const cacheKey = `${toolId}-${version}`
+  const cacheDirectory = cacheKey
+
+  // First try to find tool with desired version in tool cache (local to machine)
+  if (useLocalCache) {
+    const toolPath = tc.find(toolId, `${version}`)
+    if (toolPath) {
+      // Tool is already in cache
+      core.debug(`Found in local machine cache ${toolPath}`)
+      executableDirectory = toolPath
     } else {
-      // Final option, download tool from NVIDIA servers
-      core.debug(`Not found in local/GitHub cache, downloading...`)
-      // Get download URL
-      const url: URL = await getDownloadURL(method, version)
-      // Get intsaller filename extension depending on OS
-      const fileExtension: string = getFileExtension(osType)
-      const destFileName = `${toolId}_${version}.${fileExtension}`
-      // Download executable
-      const downloadPath: string = await tc.downloadTool(
-        url.toString(),
-        destFileName
-      )
-      // Copy file to GitHub cachePath
-      core.debug(`Copying ${destFileName} to ${cachePath}`)
-      await io.mkdirP(cachePath)
-      await io.cp(destFileName, cachePath)
-      // Cache download to local machine cache
-      const localCachePath = await tc.cacheFile(
-        downloadPath,
-        destFileName,
-        `${toolName}-${osType}`,
-        `${version}`
-      )
-      core.debug(`Cached download to local machine cache at ${localCachePath}`)
-      // Cache download to GitHub cache if enabled
-      if (useGitHubCache) {
-        const cacheId = await cache.saveCache([cachePath], cacheKey)
-        if (cacheId !== -1) {
-          core.debug(`Cached download to GitHub cache with cache id ${cacheId}`)
-        } else {
-          core.debug(`Did not cache, cache possibly already exists`)
-        }
-      }
-      executablePath = localCachePath
+      core.debug(`Not found in local cache`)
     }
   }
+
+  // Second option, get tool from GitHub cache if enabled
+  if (executableDirectory === undefined && useGitHubCache) {
+    const cacheResult: string | undefined = await cache.restoreCache(
+      [cacheDirectory],
+      cacheKey
+    )
+    if (cacheResult !== undefined) {
+      core.debug(`Found in GitHub cache ${cacheDirectory}`)
+      executableDirectory = cacheDirectory
+    } else {
+      core.debug(`Not found in GitHub cache`)
+    }
+  }
+
+  // Final option, download tool from AMD servers
+  if (executableDirectory === undefined) {
+    core.debug(`Not found in local/GitHub cache, downloading...`)
+    // Get download URL
+    const url: URL = await getDownloadURL(method, version)
+    // Get intsaller filename extension depending on OS
+    const fileExtension: string = getFileExtension(osType)
+    const downloadDirectory = 'rocm_download'
+    const destFileName = `${toolId}_${version}.${fileExtension}`
+    const destFilePath = `${downloadDirectory}/${destFileName}`
+    // Check if file already exists
+    if (!(await fileExists(destFilePath))) {
+      core.debug(`File at ${destFilePath} does not exist, downloading`)
+      // Download executable
+      await tc.downloadTool(url.toString(), destFilePath)
+    } else {
+      core.debug(`File at ${destFilePath} already exists, skipping download`)
+    }
+
+    if (useLocalCache) {
+      // Cache download to local machine cache
+      const localCacheDirectory = await tc.cacheFile(
+        destFilePath,
+        destFileName,
+        toolId,
+        `${version}`
+      )
+      core.debug(
+        `Cached download to local machine cache at ${localCacheDirectory}`
+      )
+      executableDirectory = localCacheDirectory
+    }
+    if (useGitHubCache && osType !== OSType.windows) {
+      // Move file to GitHub cache directory
+      core.debug(`Copying ${destFilePath} to ${cacheDirectory}`)
+      await io.mkdirP(cacheDirectory)
+      await io.mv(destFilePath, cacheDirectory)
+      // Log full path and files in cache directory
+      const filesInCacheDir = await getFilesRecursive(cacheDirectory)
+      core.debug(`Files in GitHub cache directory ${cacheDirectory}:`)
+      for (const f of filesInCacheDir) {
+        core.debug(f)
+      }
+      // Log absolute path
+      const absoluteCacheDir = await fs.promises.realpath(cacheDirectory)
+      core.debug(`Absolute path of cache directory: ${absoluteCacheDir}`)
+      // Save cache directory to GitHub cache
+      const cacheId = await cache.saveCache([cacheDirectory], cacheKey)
+      if (cacheId !== -1) {
+        core.debug(`Cached download to GitHub cache with cache id ${cacheId}`)
+      } else {
+        core.debug(`Did not cache, cache possibly already exists`)
+      }
+      core.debug(`Tool was moved to cache directory ${cacheDirectory}`)
+      executableDirectory = cacheDirectory
+    }
+    executableDirectory ??= downloadDirectory
+  }
+  core.debug(`Executable path ${executableDirectory}`)
   // String with full executable path
   let fullExecutablePath: string
-  // Get list of files in tool cache
-  const filesInCache = await (
-    await glob.create(`${executablePath}/**.*`)
-  ).glob()
+  // Get list of files in tool cache using readdir recursive helper
+  const filesInCache = await getFilesRecursive(executableDirectory)
   core.debug(`Files in tool cache:`)
   for (const f of filesInCache) {
     core.debug(f)
@@ -90,7 +129,7 @@ export async function download(
   if (filesInCache.length > 1) {
     throw new Error(`Got multiple file in tool cache: ${filesInCache.length}`)
   } else if (filesInCache.length === 0) {
-    throw new Error(`Got no files in tool cahce`)
+    throw new Error(`Got no files in tool cache`)
   } else {
     fullExecutablePath = filesInCache[0]
   }
@@ -112,11 +151,29 @@ function getFileExtension(osType: OSType): string {
   }
 }
 
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    const stats = await fs.promises.stat(filePath)
+    core.debug(
+      `Got the following stats for ${filePath}: isFile=${stats.isFile()}, size=${
+        stats.size
+      }`
+    )
+    return !!stats
+  } catch (e) {
+    core.debug(`Got error while checking if ${filePath} exists: ${e}`)
+    return false
+  }
+}
+
 async function getDownloadURL(method: string, version: SemVer): Promise<URL> {
   const links: AbstractLinks = await getLinks()
+  if (!(links instanceof WindowsLinks)) {
+    throw new TypeError('ROCm installer download is only supported on Windows')
+  }
   switch (method) {
     case 'local':
-      return links.getLocalURLFromCudaVersion(version)
+      return await links.getLocalURLFromRocmVersion(version)
     case 'network':
       if (!(links instanceof WindowsLinks)) {
         core.debug(`Tried to get windows links but got linux links instance`)
@@ -124,7 +181,7 @@ async function getDownloadURL(method: string, version: SemVer): Promise<URL> {
           `Network mode is not supported by linux, shouldn't even get here`
         )
       }
-      return links.getNetworkURLFromCudaVersion(version)
+      return links.getNetworkURLFromRocmVersion(version)
     default:
       throw new Error(
         `Invalid method: expected either 'local' or 'network', got '${method}'`

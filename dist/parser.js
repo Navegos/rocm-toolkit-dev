@@ -1,0 +1,14 @@
+import * as core from '@actions/core';
+export async function parsePackages(subPackages, parameterName) {
+    let subPackagesArray = [];
+    try {
+        subPackagesArray = JSON.parse(subPackages);
+    }
+    catch (error) {
+        core.debug(`Json parsing error: ${error}`);
+        const errString = `Error parsing input '${parameterName}' to a JSON string array: ${subPackages}`;
+        core.debug(errString);
+        throw new Error(errString);
+    }
+    return subPackagesArray;
+}

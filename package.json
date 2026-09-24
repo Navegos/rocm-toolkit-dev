@@ -1,54 +1,90 @@
 {
-  "name": "rocm-toolkit",
-  "version": "0.0.1",
-  "description": "GitHub Action to install the ROCM Toolkit",
-  "main": "lib/main.js",
-  "scripts": {
-    "build": "tsc --newLine lf",
-    "format": "prettier --write **/*.ts jest.config.js",
-    "format-check": "prettier --check **/*.ts jest.config.js",
-    "lint": "eslint src/**/*.ts __tests__/**/*.ts",
-    "package": "ncc build --source-map --license licenses.txt",
-    "test": "jest",
-    "all": "npm run build && npm run format && npm run lint && npm run package && npm test"
-  },
+  "name": "rocm-toolkit-dev",
+  "description": "GitHub Action to install the AMD ROCm Toolkit",
+  "version": "0.2.39",
+  "author": "@DevelVitorF",
+  "type": "module",
+  "private": true,
+  "homepage": "https://github.com/Navegos/rocm-toolkit-dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Cyberhan123/rocm-toolkit.git"
+    "url": "git+https://github.com/Navegos/rocm-toolkit-dev.git"
   },
-  "keywords": [],
-  "author": "Cyberhan123",
-  "homepage": "https://github.com/Cyberhan123/rocm-toolkit#readme",
-  "volta": {
-    "node": "16.19.1"
+  "bugs": {
+    "url": "https://github.com/Navegos/rocm-toolkit-dev/issues"
+  },
+  "keywords": [
+    "actions",
+    "rocm",
+    "rocm-toolkit",
+    "github-actions",
+    "amd",
+    "toolkit"
+  ],
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "bundle": "npm run format:write && npm run package",
+    "ci-test": "cross-env NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 npx jest",
+    "coverage": "npx make-coverage-badge --output-path ./badges/coverage.svg",
+    "format:write": "npx prettier --write .",
+    "format:check": "npx prettier --check .",
+    "lint": "npx eslint .",
+    "local-action": "npx @github/local-action . src/main.ts .env",
+    "package": "npx rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
+    "package:watch": "npm run package -- --watch",
+    "test": "NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 npx jest",
+    "all": "npm run format:write && npm run lint && npm run test && npm run coverage && npm run package"
   },
   "license": "MIT",
   "dependencies": {
-    "@actions/artifact": "^1.1.2",
-    "@actions/cache": "^3.2.2",
-    "@actions/core": "^1.10.1",
-    "@actions/exec": "^1.1.1",
-    "@actions/glob": "^0.4.0",
-    "@actions/io": "^1.1.3",
-    "@actions/tool-cache": "^2.0.1",
-    "@types/semver": "^7.5.6",
-    "semver": "^7.5.4"
+    "@actions/artifact": "^6.2.1",
+    "@actions/cache": "^6.2.0",
+    "@actions/core": "^3.0.1",
+    "@actions/exec": "^3.0.0",
+    "@actions/glob": "^0.7.0",
+    "@actions/io": "^3.0.2",
+    "@actions/tool-cache": "^4.0.0",
+    "@types/semver": "^7.8.0",
+    "semver": "^7.8.5"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.10",
-    "@types/node": "^20.10.1",
-    "@typescript-eslint/parser": "^6.13.1",
-    "@vercel/ncc": "^0.38.1",
-    "eslint": "^8.54.0",
-    "eslint-config-prettier": "^9.0.0",
-    "eslint-plugin-github": "^4.10.1",
-    "eslint-plugin-jest": "^27.6.0",
-    "eslint-plugin-prettier": "^5.0.1",
-    "jest": "^29.7.0",
-    "jest-circus": "^29.7.0",
-    "js-yaml": "^4.1.0",
-    "prettier": "3.1.0",
-    "ts-jest": "^29.1.1",
-    "typescript": "^5.3.2"
+    "@eslint/compat": "^2.1.1",
+    "@github/local-action": "^7.0.1",
+    "@jest/globals": "^30.5.2",
+    "@rollup/plugin-commonjs": "^29.0.3",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.2",
+    "@typescript-eslint/eslint-plugin": "^8.70.1",
+    "@typescript-eslint/parser": "^8.70.1",
+    "cross-env": "^10.1.0",
+    "@vercel/ncc": "^0.45.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-github": "^6.1.2",
+    "eslint-plugin-jest": "^29.16.6",
+    "eslint-plugin-prettier": "^5.5.6",
+    "jest": "^30.5.2",
+    "jest-circus": "^30.5.2",
+    "js-yaml": "^5.4.2",
+    "make-coverage-badge": "^1.2.0",
+    "prettier": "^3.9.9",
+    "prettier-eslint": "^17.1.2",
+    "rollup": "^4.63.4",
+    "ts-jest": "^29.4.13",
+    "ts-jest-resolver": "^2.0.1",
+    "typescript": "^7.0.2"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.63.4"
   }
 }

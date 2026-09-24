@@ -1,10 +1,10 @@
 import * as core from '@actions/core'
-import {OSType, getOs} from './platform'
-import {AbstractLinks} from './links/links'
-import {Method} from './method'
+import {OSType, getOs} from './platform.js'
+import {AbstractLinks} from './links/links.js'
+import {Method} from './method.js'
 import {SemVer} from 'semver'
-import {WindowsLinks} from './links/windows-links'
-import {getLinks} from './links/get-links'
+import {WindowsLinks} from './links/windows-links.js'
+import {getLinks} from './links/get-links.js'
 
 // Helper for converting string to SemVer and verifying it exists in the links
 export async function getVersion(
@@ -16,21 +16,23 @@ export async function getVersion(
   let versions
   switch (method) {
     case 'local':
-      versions = links.getAvailableLocalCudaVersions()
+      versions = links.getAvailableLocalRocmVersions()
       break
     case 'network':
       switch (await getOs()) {
         case OSType.linux:
           // TODO adapt this to actual available network versions for linux
-          versions = links.getAvailableLocalCudaVersions()
+          versions = links.getAvailableLocalRocmVersions()
           break
         case OSType.windows:
-          versions = (links as WindowsLinks).getAvailableNetworkCudaVersions()
+          versions = (
+            links as unknown as WindowsLinks
+          ).getAvailableNetworkRocmVersions()
           break
       }
   }
   core.debug(`Available versions: ${versions}`)
-  if (versions.find(v => v.compare(version) === 0) !== undefined) {
+  if (versions.some(v => v.compare(version) === 0)) {
     core.debug(`Version available: ${version}`)
     return version
   } else {

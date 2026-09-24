@@ -12,6 +12,9 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "CI"
@@ -20,51 +23,87 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest]
-        method: [local]
+        os:
+          [
+            ubuntu-26.04,
+            ubuntu-24.04,
+            ubuntu-22.04,
+            windows-2025-vs2026,
+            windows-2025,
+            windows-2022
+          ]
+        method: [local, network]
+        rocm: [5.5.1]
     runs-on: ${{ matrix.os }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
 
-      # npm cache
-      - name: Get npm cache directory
-        id: npm-cache-dir
-        shell: bash
-        run: |
-          echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
-      - uses: actions/cache@v3
-        id: npm-cache # use this to check for `cache-hit` ==> if: steps.npm-cache.outputs.cache-hit != 'true'
+      - name: Setup Node.js
+        id: setup-node
+        uses: actions/setup-node@v7
         with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          node-version-file: .node-version
+          cache: npm
 
-      - name: Install npm dependencies
-        run: npm i
+      - name: Install Dependencies
+        id: npm-ci
+        run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Check Format
+        id: npm-format-check
+        run: npm run format:check
 
-      - name: Package
-        run: npm run package
+      - name: Lint
+        id: npm-lint
+        run: npm run lint
+
+      - name: Test
+        id: npm-ci-test
+        run: npm run ci-test
 
       - name: Run the action on this runner with method ${{matrix.method}}
+        id: test-action
         uses: ./
         with:
-          rocm: '5.5.0'
+          rocm: ${{ matrix.rocm }}
+          method: ${{matrix.method}}
+          log-file-suffix: '${{matrix.method}}-${{matrix.os}}'
 
-      - name: Test if clang an clang++ is available
+      - name: Run the action on this runner with hip-sdk and rocblas subpackages
+          (Linux)
+        if: runner.os == 'Linux' && matrix.method == 'network'
+        uses: ./
+        with:
+          method: ${{matrix.method}}
+          sub-packages: '["hip-sdk"]'
+          non-rocm-sub-packages: '["rocblas"]'
+          log-file-suffix: 'hip-sdk-rocblas-${{matrix.method}}-${{matrix.os}}'
+
+      - name: Print output rocm version
+        run: echo "${{ steps.test-action.outputs.rocm }}"
+
+      - name: Print output paths
         run: |
-          clang --version
-          clang++ --version
+          echo "ROCM_PATH: ${{ steps.test-action.outputs.ROCM_PATH }}"
+          echo "HIP_PATH: ${{ steps.test-action.outputs.HIP_PATH }}"
+
+      - name: Test if hipcc is available
+        run: hipcc --version
 
       - name: List paths (windows)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          ls $env:ROCM_PATH
-          ls $env:ROCM_PATH\bin
+          ls $env:HIP_PATH
+          ls $env:HIP_PATH\bin
+          ls $env:HIP_PATH\include
+
+      - name: List paths (linux)
+        if: runner.os == 'Linux'
+        run: |
+          ls $ROCM_PATH
+          ls $ROCM_PATH/bin
+          ls $ROCM_PATH/include

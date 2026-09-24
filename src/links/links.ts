@@ -1,15 +1,15 @@
 import {SemVer} from 'semver'
 
-// Interface for getting cuda versions and corresponding download URLs
+// Interface for getting Rocm versions and corresponding download URLs
 export abstract class AbstractLinks {
-  protected cudaVersionToURL: Map<string, string> = new Map()
+  protected rocmVersionToURL: Map<string, string> = new Map()
 
-  getAvailableLocalCudaVersions(): SemVer[] {
-    return Array.from(this.cudaVersionToURL.keys()).map(s => new SemVer(s))
+  getAvailableLocalRocmVersions(): SemVer[] {
+    return Array.from(this.rocmVersionToURL.keys()).map(s => new SemVer(s))
   }
 
-  getLocalURLFromCudaVersion(version: SemVer): URL {
-    const urlString = this.cudaVersionToURL.get(`${version}`)
+  async getLocalURLFromRocmVersion(version: SemVer): Promise<URL> {
+    const urlString = this.rocmVersionToURL.get(`${version}`)
     if (urlString === undefined) {
       throw new Error(`Invalid version: ${version}`)
     }

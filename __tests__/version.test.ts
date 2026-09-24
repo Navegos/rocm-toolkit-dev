@@ -5,7 +5,7 @@ import {getVersion} from '../src/version'
 test.concurrent.each<Method>(['local', 'network'])(
   'Successfully parse correct version for method %s',
   async method => {
-    const versionString = '11.2.2'
+    const versionString = '5.5.1'
     try {
       const version = await getVersion(versionString, method)
       expect(version).toBeInstanceOf(SemVer)

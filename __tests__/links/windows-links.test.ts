@@ -2,9 +2,9 @@ import {AbstractLinks} from '../../src/links/links'
 import {SemVer} from 'semver'
 import {WindowsLinks} from '../../src/links/windows-links'
 
-test.concurrent('Windows Cuda versions in descending order', async () => {
+test.concurrent('Windows Rocm versions in descending order', async () => {
   const wLinks: AbstractLinks = WindowsLinks.Instance
-  const versions = wLinks.getAvailableLocalCudaVersions()
+  const versions = wLinks.getAvailableLocalRocmVersions()
   for (let i = 0; i < versions.length - 1; i++) {
     const versionA: SemVer = versions[i]
     const versionB: SemVer = versions[i + 1]
@@ -13,10 +13,10 @@ test.concurrent('Windows Cuda versions in descending order', async () => {
 })
 
 test.concurrent(
-  'Windows Cuda version to URL map contains valid URLs',
+  'Windows Rocm version to URL map contains valid URLs',
   async () => {
-    for (const version of WindowsLinks.Instance.getAvailableLocalCudaVersions()) {
-      const url: URL = WindowsLinks.Instance.getLocalURLFromCudaVersion(version)
+    for (const version of WindowsLinks.Instance.getAvailableLocalRocmVersions()) {
+      const url = await WindowsLinks.Instance.getLocalURLFromRocmVersion(version)
       expect(url).toBeInstanceOf(URL)
     }
   }
@@ -24,15 +24,15 @@ test.concurrent(
 
 test.concurrent('There is at least windows 1 version url pair', async () => {
   expect(
-    WindowsLinks.Instance.getAvailableLocalCudaVersions().length
+    WindowsLinks.Instance.getAvailableLocalRocmVersions().length
   ).toBeGreaterThanOrEqual(1)
 })
 
 test.concurrent(
-  'Windows Cuda network versions in descending order',
+  'Windows Rocm network versions in descending order',
   async () => {
     const wLinks = WindowsLinks.Instance
-    const versions = wLinks.getAvailableNetworkCudaVersions()
+    const versions = wLinks.getAvailableNetworkRocmVersions()
     for (let i = 0; i < versions.length - 1; i++) {
       const versionA: SemVer = versions[i]
       const versionB: SemVer = versions[i + 1]
@@ -42,11 +42,11 @@ test.concurrent(
 )
 
 test.concurrent(
-  'Windows network Cuda version to URL map contains valid URLs',
+  'Windows network Rocm version to URL map contains valid URLs',
   async () => {
-    for (const version of WindowsLinks.Instance.getAvailableNetworkCudaVersions()) {
+    for (const version of WindowsLinks.Instance.getAvailableNetworkRocmVersions()) {
       const url: URL =
-        WindowsLinks.Instance.getNetworkURLFromCudaVersion(version)
+        WindowsLinks.Instance.getNetworkURLFromRocmVersion(version)
       expect(url).toBeInstanceOf(URL)
     }
   }
@@ -56,7 +56,7 @@ test.concurrent(
   'There is at least windows network 1 version url pair',
   async () => {
     expect(
-      WindowsLinks.Instance.getAvailableNetworkCudaVersions().length
+      WindowsLinks.Instance.getAvailableNetworkRocmVersions().length
     ).toBeGreaterThanOrEqual(1)
   }
 )
