@@ -53,13 +53,15 @@ async function run(): Promise<void> {
 
     // Parse linuxLocalArgs array
     let linuxLocalArgsArray: string[] = []
-    try {
-      linuxLocalArgsArray = JSON.parse(linuxLocalArgs)
-    } catch (error) {
-      core.debug(`Json parsing error: ${error}`)
-      const errString = `Error parsing input 'linux-local-args' to a JSON string array: ${linuxLocalArgs}`
-      core.debug(errString)
-      throw new Error(errString)
+    if (linuxLocalArgs && linuxLocalArgs.trim() !== '') {
+      try {
+        linuxLocalArgsArray = JSON.parse(linuxLocalArgs)
+      } catch (error) {
+        core.debug(`Json parsing error: ${error}`)
+        const errString = `Error parsing input 'linux-local-args' to a JSON string array: ${linuxLocalArgs}`
+        core.debug(errString)
+        throw new Error(errString)
+      }
     }
 
     // Check if subPackages are specified in 'local' method on Linux

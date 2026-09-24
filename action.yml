@@ -20,6 +20,10 @@ inputs:
     description: "Installation method: 'local' or 'network'."
     required: false
     default: 'local'
+  linux-local-args:
+    description: 'Arguments for the local installer in the form of a JSON array.'
+    required: false
+    default: '[]'
   use-github-cache:
     description: 'Use GitHub cache to cache downloaded installer on GitHub servers'
     required: false
